@@ -4,3 +4,6 @@
 [submodule "depthai-core"]
 	path = depthai-core
 	url = git@github.com:luxonis/depthai-core.git
+[submodule "deps/pangolin"]
+	path = deps/pangolin
+	url = https://github.com/stevenlovegrove/Pangolin
