@@ -23,9 +23,11 @@ include_directories(
     ${ORB_SLAM3_DIR}
     ${ORB_SLAM3_DIR}/include
     ${ORB_SLAM3_DIR}/include/CameraModels
+    ${ORB_SLAM3_DIR}/Thirdparty/Sophus
     ${EIGEN3_INCLUDE_DIR}
     ${Pangolin_INCLUDE_DIRS}
     ${PROJECT_SOURCE_DIR}/include
+    
 )
 
 # Output dirs

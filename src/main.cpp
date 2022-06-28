@@ -189,31 +189,23 @@ int main(int argc, char *argv[]) {
 
         // Pass the images into the SLAM system. This produces a matrix with
         // the pose information of the camera.
-        cv::Mat raw_pose = SLAM.TrackStereo(
+        Sophus::SE3f camFromWorld = SLAM.TrackStereo(
             rectif_left,
             rectif_right,
             frame_timestamp_s
         );
 
+        bool couldTrack = SLAM.GetTrackingState() == ORB_SLAM3::Tracking::eTrackingState::OK;
+
         // The output pose may be empty if the system was unable to track the
         // movement, so only get position and rotation if pose isn't empty. We
         // also put this info an a localisation fix available flag for later
         // use. 
-        bool loc_fix_available = !raw_pose.empty();
+        bool loc_fix_available = couldTrack;
         if (loc_fix_available) {
-            // The pose matrix is a 4x4 extrinsic matrix, with the form:
-            // [R_3x3 T_3x1; [0 0 0 1]], we can find the camera position with 
-            // C = -R'T (R' = R transpose).
-            pose.rotation = raw_pose(cv::Rect(0, 0, 3, 3));
-            cv::Mat T = raw_pose(cv::Rect(3, 0, 1, 3));
-            pose.position = -pose.rotation.t()*T;
-
             // Print the updated position, but transpose it so that instead of
             // a column vector we have a row vector, which is easier to read.
-            std::cout << 
-                "position: " << 
-                fmt->format(pose.position.t()) << 
-                std::endl;
+            std::cout << "position: " << camFromWorld.inverse().translation() << std::endl;
         }
         else {
             // If we didn't get a pose update log it.
