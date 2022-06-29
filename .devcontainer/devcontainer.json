@@ -20,7 +20,8 @@
 		// To get X11 forwarding.
 		// Don't forget to run xhost +local:root on the host.
 		"--gpus", "all",
-		"-e", "DISPLAY=${env:DISPLAY}",
+		"-e", "DISPLAY=${env:DISPLAY}", 
+		"-e", "QT_X11_NO_MITSHM=1",
         "-v", "/tmp/.X11-unix:/tmp/.X11-unix"
 	],
 
