@@ -23,6 +23,8 @@
 #include "depthai/depthai.hpp"
 #include "util.h"
 
+#include "string_template.hpp"
+
 /* -------------------------------------------------------------------------
  * CONSTANTS
  * ------------------------------------------------------------------------- */
@@ -49,6 +51,8 @@ int main(int argc, char *argv[]) {
 
     std::cout << "OAK-D/ORB_SLAM3 Experiment" << std::endl;
 
+    std::unordered_map<std::string, std::string> config_vars;
+
     // Create the pipeline that we're going to build. Pipelines are depthai's
     // way of chaining up different series or parallel process, sort of like
     // gstreamer. 
@@ -68,28 +72,32 @@ int main(int argc, char *argv[]) {
     auto mono_left = pipeline.create<dai::node::MonoCamera>();
     auto mono_right = pipeline.create<dai::node::MonoCamera>();
     auto stereo = pipeline.create<dai::node::StereoDepth>();
-    auto xout_rectif_left = pipeline.create<dai::node::XLinkOut>();
-    auto xout_rectif_right = pipeline.create<dai::node::XLinkOut>();
-    auto xout_disp = pipeline.create<dai::node::XLinkOut>();
+    auto xout_left = pipeline.create<dai::node::XLinkOut>();
+    auto xout_right = pipeline.create<dai::node::XLinkOut>();
+    // auto xout_disp = pipeline.create<dai::node::XLinkOut>();
 
     // And we set the names of each output node, so we can access them later as
     // output queues
-    xout_rectif_left->setStreamName("rectified_left");
-    xout_rectif_right->setStreamName("rectified_right");
-    xout_disp->setStreamName("disparity");
+    xout_left->setStreamName("rectified_left");
+    xout_right->setStreamName("rectified_right");
+    // xout_disp->setStreamName("disparity");
 
     // Now we set which cameras are actually connected to the left and right
     // nodes, and set their resolution and framerate
     mono_left->setBoardSocket(dai::CameraBoardSocket::LEFT);
-    mono_left->setResolution(
-        dai::MonoCameraProperties::SensorResolution::THE_720_P
-    );
+    mono_left->setResolution(dai::MonoCameraProperties::SensorResolution::THE_480_P);
     mono_left->setFps(20.0);
     mono_right->setBoardSocket(dai::CameraBoardSocket::RIGHT);
-    mono_right->setResolution(
-        dai::MonoCameraProperties::SensorResolution::THE_720_P
-    );
-    mono_right->setFps(20.0);
+    mono_right->setResolution(dai::MonoCameraProperties::SensorResolution::THE_480_P);
+    
+    const int stereo_width = 640;
+    const int stereo_height = 480;
+
+    config_vars["width"] = std::to_string(stereo_width);
+    config_vars["height"] = std::to_string(stereo_height);
+
+    config_vars["fps"] = "20";
+    mono_right->setFps(20.0);    
 
     // Now we set the stereo node to output rectified images and disp maps. We
     // also set the rectify frames to not be mirrored, and to use black to fill
@@ -101,42 +109,109 @@ int main(int argc, char *argv[]) {
     // 
     // We also enable extended disparity depth, which increases the maximum 
     // disparity and therefore provides a shorter minimum depth.
-    stereo->setOutputRectified(true);
-    stereo->setOutputDepth(false);
-    stereo->setRectifyEdgeFillColor(0);
-    stereo->setRectifyMirrorFrame(false);
-    stereo->setExtendedDisparity(true);
+    // stereo->setOutputDepth(false);
+    // stereo->setRectifyEdgeFillColor(0);
+    // stereo->setExtendedDisparity(true);
 
     // We now link the cameras up to the stereo node
     mono_left->out.link(stereo->left);
     mono_right->out.link(stereo->right);
 
+    // mono_left->out.link(xout_left->input);
+    // mono_right->out.link(xout_right->input);
+
     // And the stereo rectified and disp outputs to the output nodes
-    stereo->rectifiedLeft.link(xout_rectif_left->input);
-    stereo->rectifiedRight.link(xout_rectif_right->input);
-    stereo->disparity.link(xout_disp->input);
+    stereo->rectifiedLeft.link(xout_left->input);
+    stereo->rectifiedRight.link(xout_right->input);
+    // stereo->disparity.link(xout_disp->input);
 
     // Now we can connect to the OAK-D device and start our pipeline
     dai::Device device(pipeline);
     device.startPipeline();
 
+    auto calib = device.readCalibration();
+    auto leftIntrinsics = calib.getCameraIntrinsics(dai::CameraBoardSocket::LEFT, stereo_width, stereo_height);
+    auto rightIntrinsics = calib.getCameraIntrinsics(dai::CameraBoardSocket::RIGHT, stereo_width, stereo_height);
+    auto leftDistortion = calib.getDistortionCoefficients(dai::CameraBoardSocket::LEFT);
+    auto rightDistortion = calib.getDistortionCoefficients(dai::CameraBoardSocket::RIGHT);
+    auto distModel = calib.getDistortionModel(dai::CameraBoardSocket::LEFT);
+    auto baselineMeters = 1e-2 * calib.getBaselineDistance(dai::CameraBoardSocket::LEFT, dai::CameraBoardSocket::RIGHT);
+
+    config_vars["cam1_fx"] = std::to_string(rightIntrinsics[0][0]);
+    config_vars["cam1_fy"] = std::to_string(rightIntrinsics[1][1]);
+    config_vars["cam1_cx"] = std::to_string(rightIntrinsics[0][2]);
+    config_vars["cam1_cy"] = std::to_string(rightIntrinsics[1][2]);
+
+    // config_vars["cam1_k1"] = std::to_string(leftDistortion[0]);
+    // config_vars["cam1_k2"] = std::to_string(leftDistortion[1]);
+    // config_vars["cam1_p1"] = std::to_string(leftDistortion[2]);
+    // config_vars["cam1_p2"] = std::to_string(leftDistortion[3]);
+    // config_vars["cam1_k3"] = std::to_string(leftDistortion[4]);
+
+    config_vars["cam1_k1"] = std::to_string(0.0);
+    config_vars["cam1_k2"] = std::to_string(0.0);
+    config_vars["cam1_p1"] = std::to_string(0.0);
+    config_vars["cam1_p2"] = std::to_string(0.0);
+    config_vars["cam1_k3"] = std::to_string(0.0);
+
+    config_vars["cam2_fx"] = std::to_string(rightIntrinsics[0][0]);
+    config_vars["cam2_fy"] = std::to_string(rightIntrinsics[1][1]);
+    config_vars["cam2_cx"] = std::to_string(rightIntrinsics[0][2]);
+    config_vars["cam2_cy"] = std::to_string(rightIntrinsics[1][2]);
+
+    // config_vars["cam2_k1"] = std::to_string(rightDistortion[0]);
+    // config_vars["cam2_k2"] = std::to_string(rightDistortion[1]);
+    // config_vars["cam2_p1"] = std::to_string(rightDistortion[2]);
+    // config_vars["cam2_p2"] = std::to_string(rightDistortion[3]);
+    // config_vars["cam2_k3"] = std::to_string(rightDistortion[4]);
+
+    config_vars["cam2_k1"] = std::to_string(0.0);
+    config_vars["cam2_k2"] = std::to_string(0.0);
+    config_vars["cam2_p1"] = std::to_string(0.0);
+    config_vars["cam2_p2"] = std::to_string(0.0);
+    config_vars["cam2_k3"] = std::to_string(0.0);
+
+    auto leftFromRight = calib.getCameraExtrinsics(dai::CameraBoardSocket::RIGHT, dai::CameraBoardSocket::LEFT);
+
+    // config_vars["Stereo.T_c1_c2"] = cv::format("[\n    %f, %f, %f, %f,\n    %f, %f, %f, %f, \n    %f, %f, %f, %f, \n    %f, %f, %f, %f ]\n",
+    //     leftFromRight[0][0], leftFromRight[0][1], leftFromRight[0][2], leftFromRight[0][3]*1e-2,
+    //     leftFromRight[1][0], leftFromRight[1][1], leftFromRight[1][2], leftFromRight[1][3]*1e-2,
+    //     leftFromRight[2][0], leftFromRight[2][1], leftFromRight[2][2], leftFromRight[2][3]*1e-2,
+    //     leftFromRight[3][0], leftFromRight[3][1], leftFromRight[3][2], leftFromRight[3][3]);
+
+    config_vars["Stereo.T_c1_c2"] = cv::format("[\n    %f, %f, %f, %f,\n    %f, %f, %f, %f, \n    %f, %f, %f, %f, \n    %f, %f, %f, %f ]\n",
+        1.0, 0.0, 0.0, baselineMeters,
+        0.0, 1.0, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        0.0, 0.0, 0.0, 1.0);
+    
+    config_vars["baseline_meters_times_fx"] = std::to_string(baselineMeters * rightIntrinsics[0][0]);
+    config_vars["baseline_meters"] = std::to_string(baselineMeters);
+
+    // [ 0.999983, 0.00445005, 0.00385861, 0.0636739954352379,
+    //         -0.00443664, 0.999984, -0.00347621, -0.000252007856033742,
+    //         -0.00387402, 0.00345903, 0.999986, -8.87895439518616e-05,
+    //         0.0,0.0,0.0,1.0]
+
+    tpl::render_template_file ("oak_d_orbslam_settings.yaml.tpl", "oak_d_orbslam_settings.yaml", config_vars);
+
     // Finally to actually see the outputs we need to get their output queues
     // We use a max buffer size of 8 frames and set it into non-blocking mode.
     auto rectif_left_queue = device.getOutputQueue("rectified_left", 8, false);
     auto rectif_right_queue = device.getOutputQueue("rectified_right", 8, false);
-    auto disp_queue = device.getOutputQueue("disparity", 8, false);
+    // auto disp_queue = device.getOutputQueue("disparity", 8, false);
     
     // Create the WLS (weighted least squares) filter, which we use to improve
     // the quality of our disparity map. Also set the lambda and sigma values
-    auto wls_filter = cv::ximgproc::createDisparityWLSFilterGeneric(false);
-    wls_filter->setLambda(WLS_LAMBDA);
-    wls_filter->setSigmaColor(WLS_SIGMA);
+    // auto wls_filter = cv::ximgproc::createDisparityWLSFilterGeneric(false);
+    // wls_filter->setLambda(WLS_LAMBDA);
+    // wls_filter->setSigmaColor(WLS_SIGMA);
 
     // To use OpenCV's reprojectImageTo3D we need a Q matrix, which is obtained
     // from stereoRectify. This means we'll have to extract some data from the
     // device itself, which is why this is done here. 
     // TODO: actually calculate these
-    cv::Mat R1, R2, P1, P2, Q;
+    // cv::Mat R1, R2, P1, P2, Q;
 
     // Create the SLAM system. First argument is path to the ORB_SLAM3 vocab
     // file. The second is the path to the settings file for this particular
@@ -173,12 +248,18 @@ int main(int argc, char *argv[]) {
         // they will wait until there's data available.
         auto rectif_left_frame = rectif_left_queue->get<dai::ImgFrame>();
         auto rectif_right_frame = rectif_left_queue->get<dai::ImgFrame>();
-        auto disp_map_frame = disp_queue->get<dai::ImgFrame>();
+        // auto disp_map_frame = disp_queue->get<dai::ImgFrame>();
 
         // Convert the frames into opencv images
         auto rectif_left = imgframe_to_mat(rectif_left_frame);
         auto rectif_right = imgframe_to_mat(rectif_right_frame);
-        auto disp_map = imgframe_to_mat(disp_map_frame);
+        // auto disp_map = imgframe_to_mat(disp_map_frame);
+
+        rectif_left(cv::Rect(0,0,640,20)) = 0;
+        rectif_left(cv::Rect(600,0,40,480)) = 0;
+
+        rectif_right(cv::Rect(0,0,640,20)) = 0;
+        rectif_right(cv::Rect(600,0,40,480)) = 0;
 
         // Get the time between the epoch and now, allowing us to get a
         // timestamp (in seconds) to pass into the slam system.
@@ -205,7 +286,8 @@ int main(int argc, char *argv[]) {
         if (loc_fix_available) {
             // Print the updated position, but transpose it so that instead of
             // a column vector we have a row vector, which is easier to read.
-            std::cout << "position: " << camFromWorld.inverse().translation() << std::endl;
+            auto t = camFromWorld.inverse().translation();
+            std::cout << "position: " << t[0] << ", " << t[1] << ", " << t[2] << std::endl;
         }
         else {
             // If we didn't get a pose update log it.
@@ -214,18 +296,18 @@ int main(int argc, char *argv[]) {
 
         // The raw disparity map is flipped, since we flipped the rectified
         // images, so we must flip it as well.
-        cv::flip(disp_map, disp_map, 1);
+        // cv::flip(disp_map, disp_map, 1);
 
         // Filter the disparity map
-        cv::Mat filtered_disp_map;
-        wls_filter->filter(disp_map, rectif_right, filtered_disp_map);
+        // cv::Mat filtered_disp_map;
+        // wls_filter->filter(disp_map, rectif_right, filtered_disp_map);
 
         // Apply a colormap to the filtered disparity map, but don't normalise
         // it. Normalising the map will mean that the color doesn't correspond
         // directly with disparity.
-        cv::Mat colour_disp;
-        cv::applyColorMap(filtered_disp_map, colour_disp, cv::COLORMAP_JET);
-        cv::imshow("disparity", colour_disp);
+        // cv::Mat colour_disp;
+        // cv::applyColorMap(filtered_disp_map, colour_disp, cv::COLORMAP_JET);
+        // cv::imshow("disparity", colour_disp);
 
         // See if q pressed, if so quit
         if (cv::waitKey(1) == 'q') {

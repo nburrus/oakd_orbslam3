@@ -8,32 +8,32 @@ File.version: "1.0"
 Camera.type: "Rectified"
 
 # Left Camera calibration and distortion parameters (OpenCV)
-Camera1.fx: 451.034454
-Camera1.fy: 451.034454
-Camera1.cx: 299.038391
-Camera1.cy: 255.165024
+Camera1.fx: {{ cam1_fx }}
+Camera1.fy: {{ cam1_fy }}
+Camera1.cx: {{ cam1_cx }}
+Camera1.cy: {{ cam1_cy }}
 
 # Kannala-Brandt distortion parameters
-# Camera1.k1: 0.000000
-# Camera1.k2: 0.000000
-# Camera1.p1: 0.000000
-# Camera1.p2: 0.000000
-# Camera1.k3: 0.000000
+# Camera1.k1: {{ cam1_k1 }}
+# Camera1.k2: {{ cam1_k2 }}
+# Camera1.p1: {{ cam1_p1 }}
+# Camera1.p2: {{ cam1_p2 }}
+# Camera1.k3: {{ cam1_k3 }}
 
 # # Right Camera calibration and distortion parameters (OpenCV)
-# Camera2.fx: 451.034454
-# Camera2.fy: 451.034454
-# Camera2.cx: 299.038391
-# Camera2.cy: 255.165024
+# Camera2.fx: {{ cam2_fx }}
+# Camera2.fy: {{ cam2_fy }}
+# Camera2.cx: {{ cam2_cx }}
+# Camera2.cy: {{ cam2_cy }}
 
 # # Kannala-Brandt distortion parameters
-# Camera2.k1: 0.000000
-# Camera2.k2: 0.000000
-# Camera2.p1: 0.000000
-# Camera2.p2: 0.000000
-# Camera2.k3: 0.000000
+# Camera2.k1: {{ cam2_k1 }}
+# Camera2.k2: {{ cam2_k2 }}
+# Camera2.p1: {{ cam2_p1 }}
+# Camera2.p2: {{ cam2_p2 }}
+# Camera2.k3: {{ cam2_k3 }}
 
-Stereo.b: 0.075000
+Stereo.b: {{ baseline_meters }}
 
 # Transformation matrix from right camera to left camera
 # Stereo.T_c1_c2: !!opencv-matrix
@@ -44,16 +44,16 @@ Stereo.b: 0.075000
 
 # Lapping area between images (FIXME: We must calculate)
 Camera1.overlappingBegin: 0
-Camera1.overlappingEnd: 640
+Camera1.overlappingEnd: {{ width }}
 
 Camera2.lappingBegin: 0
-Camera2.lappingEnd: 640
+Camera2.lappingEnd: {{ width }}
 
-Camera.width: 640
-Camera.height: 480
+Camera.width: {{ width }}
+Camera.height: {{ height }}
 
 # Camera frames per second 
-Camera.fps: 20
+Camera.fps: {{ fps }}
 
 # Color order of the images (0: BGR, 1: RGB. It is ignored if images are grayscale)
 Camera.RGB: 1
